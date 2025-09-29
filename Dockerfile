@@ -12,8 +12,8 @@ RUN apk add --no-cache \
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Instalar Expo CLI globalmente
-RUN npm install -g @expo/cli@latest
+# Instalar Expo CLI e ngrok globalmente
+RUN npm install -g @expo/cli@latest @expo/ngrok@latest
 
 # Baixar o projeto
 RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
@@ -31,4 +31,5 @@ EXPOSE 19001
 EXPOSE 19002
 
 # Comando para iniciar o Expo
-CMD ["npx", "expo", "start", "--tunnel", "--non-interactive"]
+ENV CI=1
+CMD ["npx", "expo", "start", "--tunnel"]
