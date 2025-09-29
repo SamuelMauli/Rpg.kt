@@ -31,5 +31,4 @@ EXPOSE 19001
 EXPOSE 19002
 
 # Comando para iniciar o Expo
-ENV CI=1
 CMD ["npx", "expo", "start", "--tunnel"]
