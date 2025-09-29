@@ -1,4 +1,4 @@
-# Dockerfile para Old Dragon RPG Mobile com QR Code
+# Dockerfile com servidor web customizado para QR Code
 FROM node:18-alpine
 
 # Instalar dependências do sistema
@@ -12,8 +12,9 @@ RUN apk add --no-cache \
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Instalar Expo CLI e ngrok globalmente
+# Instalar Expo CLI e dependências
 RUN npm install -g @expo/cli@latest @expo/ngrok@latest
+RUN npm install express qrcode
 
 # Baixar o projeto
 RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
@@ -21,18 +22,25 @@ RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
     mv Rpg.kt-main/mobile/* . && \
     rm -rf Rpg.kt-main main.zip
 
+# Copiar servidor web customizado
+COPY web-server.js /app/
+
 # Instalar dependências do projeto
 RUN npm install
 
-# Expor portas do Expo
+# Expor portas
 EXPOSE 8081
 EXPOSE 19000
 EXPOSE 19001
 EXPOSE 19002
 
-# Configurar variáveis de ambiente para interface web
-ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
-ENV REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
+# Script de inicialização
+RUN echo '#!/bin/bash\n\
+echo "🚀 Iniciando Old Dragon RPG..."\n\
+npx expo start --tunnel --port 19000 &\n\
+sleep 10\n\
+echo "🖥️ Iniciando servidor web..."\n\
+node web-server.js\n\
+' > /app/start.sh && chmod +x /app/start.sh
 
-# Comando para iniciar o Expo com interface web
-CMD ["sh", "-c", "npx expo start --tunnel --web"]
+CMD ["/app/start.sh"]
