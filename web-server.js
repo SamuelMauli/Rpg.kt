@@ -7,46 +7,50 @@ const app = express();
 let currentTunnelUrl = 'exp://detectando-tunnel.exp.direct';
 let expoStatus = 'Iniciando...';
 
-// Função simplificada para detectar URL do tunnel
+// Função para detectar URL do tunnel do Expo
 function detectTunnelUrl() {
   return new Promise((resolve) => {
     console.log('🔍 Detectando URL do tunnel...');
     
-    // Método 1: Verificar logs do Expo
-    exec('cat /tmp/expo.log | grep -o "exp://[^\\s]*" | tail -1', (error, stdout) => {
+    // Método 1: Verificar logs do Expo para encontrar tunnel URL
+    exec('cat /tmp/expo.log | grep -o "exp://[^\\s]*\\.exp\\.direct" | tail -1', (error, stdout) => {
       if (!error && stdout.trim()) {
         const url = stdout.trim();
-        console.log(`✅ URL encontrada nos logs: ${url}`);
+        console.log(`✅ URL do tunnel encontrada nos logs: ${url}`);
         resolve(url);
         return;
       }
       
-      // Método 2: Tentar comando expo url
-      exec('cd /app && npx expo url --tunnel 2>/dev/null', (error2, stdout2) => {
-        if (!error2 && stdout2.trim() && stdout2.includes('exp://')) {
-          const url = stdout2.trim();
-          console.log(`✅ URL encontrada via comando: ${url}`);
-          resolve(url);
+      // Método 2: Verificar se há URL tunnel no JSON do Expo
+      exec('curl -s http://localhost:8081 2>/dev/null | grep -o "http://[^"]*\\.exp\\.direct"', (error2, stdout2) => {
+        if (!error2 && stdout2.trim()) {
+          const httpUrl = stdout2.trim();
+          const expUrl = httpUrl.replace('http://', 'exp://').replace(':8081', '');
+          console.log(`✅ URL do tunnel encontrada via API: ${expUrl}`);
+          resolve(expUrl);
           return;
         }
         
-        // Método 3: Verificar se há processo expo rodando
-        exec('ps aux | grep expo | grep -v grep', (error3, stdout3) => {
-          if (!error3 && stdout3) {
-            console.log('📡 Processo Expo detectado, usando URL padrão');
-            // Gerar URL baseada no hostname do container
-            exec('hostname -i', (error4, ip) => {
-              if (!error4 && ip.trim()) {
-                const containerIp = ip.trim();
-                resolve(`exp://${containerIp}:19000`);
-              } else {
-                resolve('exp://tunnel-em-processo.exp.direct');
+        // Método 3: Extrair do JSON completo
+        exec('curl -s http://localhost:8081 2>/dev/null', (error3, stdout3) => {
+          if (!error3 && stdout3.includes('hostUri')) {
+            try {
+              const json = JSON.parse(stdout3);
+              if (json.extra && json.extra.expoClient && json.extra.expoClient.hostUri) {
+                const hostUri = json.extra.expoClient.hostUri;
+                const expUrl = `exp://${hostUri}`;
+                console.log(`✅ URL extraída do JSON: ${expUrl}`);
+                resolve(expUrl);
+                return;
               }
-            });
-          } else {
-            console.log('❌ Nenhum processo Expo encontrado');
-            resolve('exp://aguardando-tunnel.exp.direct');
+            } catch (e) {
+              console.log('❌ Erro ao parsear JSON:', e.message);
+            }
           }
+          
+          // Fallback: usar URL padrão
+          console.log('⚠️ Usando URL padrão');
+          resolve('exp://aguardando-tunnel.exp.direct');
         });
       });
     });
@@ -55,11 +59,11 @@ function detectTunnelUrl() {
 
 // Função para verificar status do Expo
 function checkExpoStatus() {
-  exec('ps aux | grep expo | grep -v grep', (error, stdout) => {
-    if (!error && stdout) {
-      expoStatus = 'Expo rodando ✅';
+  exec('curl -s http://localhost:8081 2>/dev/null', (error, stdout) => {
+    if (!error && stdout.includes('launchAsset')) {
+      expoStatus = 'Tunnel conectado ✅';
     } else {
-      expoStatus = 'Iniciando Expo... ⏳';
+      expoStatus = 'Conectando tunnel... ⏳';
     }
   });
 }
@@ -68,7 +72,7 @@ function checkExpoStatus() {
 setInterval(async () => {
   try {
     const newUrl = await detectTunnelUrl();
-    if (newUrl && newUrl !== currentTunnelUrl) {
+    if (newUrl && newUrl !== currentTunnelUrl && !newUrl.includes('aguardando')) {
       currentTunnelUrl = newUrl;
       console.log(`🔄 URL atualizada: ${currentTunnelUrl}`);
     }
@@ -78,11 +82,11 @@ setInterval(async () => {
   }
 }, 10000);
 
-// Detectar URL inicial após 5 segundos
+// Detectar URL inicial após 10 segundos
 setTimeout(async () => {
   currentTunnelUrl = await detectTunnelUrl();
   console.log(`🎯 URL inicial detectada: ${currentTunnelUrl}`);
-}, 5000);
+}, 10000);
 
 // Rota principal que mostra QR code
 app.get('/', async (req, res) => {
@@ -126,6 +130,7 @@ app.get('/', async (req, res) => {
                 font-size: 2.5em;
                 margin: 0 0 10px 0;
                 color: #4ecdc4;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
             }
             .subtitle {
                 font-size: 1.2em;
@@ -153,6 +158,9 @@ app.get('/', async (req, res) => {
                 color: #4ecdc4;
                 word-break: break-all;
                 margin: 10px 0;
+                background: #222;
+                padding: 10px;
+                border-radius: 5px;
             }
             .status {
                 background: rgba(76, 175, 80, 0.2);
@@ -176,9 +184,18 @@ app.get('/', async (req, res) => {
                 border-radius: 5px;
                 cursor: pointer;
                 margin: 10px;
+                font-size: 1em;
             }
             .copy-btn:hover {
                 background: #45b7aa;
+            }
+            .warning {
+                background: rgba(255, 193, 7, 0.2);
+                border: 1px solid #ffc107;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+                color: #ffc107;
             }
         </style>
     </head>
@@ -192,25 +209,35 @@ app.get('/', async (req, res) => {
             </div>
             
             <div class="url-section">
-                <strong>🔗 URL Atual:</strong>
+                <strong>🔗 URL do Tunnel:</strong>
                 <div class="url-text" id="tunnelUrl">${currentTunnelUrl}</div>
-                <button class="copy-btn" onclick="copyUrl()">📋 Copiar</button>
+                <button class="copy-btn" onclick="copyUrl()">📋 Copiar URL</button>
             </div>
             
             <div class="status">
                 <strong>📡 Status:</strong> ${expoStatus}<br>
-                <strong>🕒 Atualizado:</strong> ${new Date().toLocaleTimeString()}
+                <strong>🕒 Última verificação:</strong> ${new Date().toLocaleTimeString()}
             </div>
+            
+            ${currentTunnelUrl.includes('detectando') || currentTunnelUrl.includes('aguardando') ? 
+              '<div class="warning"><strong>⚠️ Aguardando:</strong> Tunnel ainda conectando... A URL será atualizada automaticamente.</div>' : ''}
             
             <div class="instructions">
                 <h3>📋 Como conectar:</h3>
                 <ol>
-                    <li><strong>Baixe Expo Go</strong> no celular</li>
-                    <li><strong>Escaneie o QR code</strong> acima</li>
-                    <li><strong>Ou digite a URL</strong> manualmente</li>
-                    <li><strong>Aguarde carregar</strong> (1-2 min)</li>
-                    <li><strong>Jogue!</strong> ⚔️🐉</li>
+                    <li><strong>📱 Baixe Expo Go</strong> no seu celular (Android/iOS)</li>
+                    <li><strong>📷 Escaneie o QR code</strong> acima com o Expo Go</li>
+                    <li><strong>⌨️ Ou digite a URL</strong> manualmente no Expo Go</li>
+                    <li><strong>⏳ Aguarde carregar</strong> (1-2 minutos na primeira vez)</li>
+                    <li><strong>🎮 Jogue!</strong> Crie seu herói e explore! ⚔️🐉</li>
                 </ol>
+                
+                <h3>🔧 Se não funcionar:</h3>
+                <ul>
+                    <li>Aguarde a URL do tunnel ser detectada</li>
+                    <li>Verifique se está na mesma rede WiFi</li>
+                    <li>Tente recarregar a página</li>
+                </ul>
             </div>
             
             <p><em>🔄 Página atualiza automaticamente a cada 15 segundos</em></p>
@@ -220,6 +247,15 @@ app.get('/', async (req, res) => {
             function copyUrl() {
                 const url = document.getElementById('tunnelUrl').textContent;
                 navigator.clipboard.writeText(url).then(() => {
+                    alert('📋 URL copiada para a área de transferência!');
+                }).catch(() => {
+                    // Fallback para navegadores mais antigos
+                    const textArea = document.createElement('textarea');
+                    textArea.value = url;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
                     alert('📋 URL copiada!');
                 });
             }
@@ -234,16 +270,28 @@ app.get('/', async (req, res) => {
     res.send(html);
   } catch (error) {
     res.status(500).send(`
-      <h1>❌ Erro</h1>
+      <h1>❌ Erro ao gerar QR Code</h1>
       <p>Erro: ${error.message}</p>
       <p>URL atual: ${currentTunnelUrl}</p>
+      <p>Recarregando em 5 segundos...</p>
       <script>setTimeout(() => location.reload(), 5000);</script>
     `);
   }
 });
 
-// Iniciar servidor
-app.listen(8081, '0.0.0.0', () => {
-  console.log('🖥️ Servidor web rodando em http://localhost:8081');
+// Rota para API que retorna informações
+app.get('/api/status', (req, res) => {
+  res.json({
+    tunnelUrl: currentTunnelUrl,
+    status: expoStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Iniciar servidor na porta 3000 (diferente do Expo)
+const PORT = 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🖥️ Servidor web rodando em http://localhost:${PORT}`);
   console.log('📱 QR Code será gerado automaticamente');
+  console.log('🔍 Detectando URL do tunnel Expo...');
 });

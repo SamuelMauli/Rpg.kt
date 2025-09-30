@@ -31,6 +31,7 @@ docker build -f Dockerfile-web -t old-dragon-rpg-web .
 echo "▶️ Iniciando container..."
 docker run -d \
   --name old-dragon-rpg \
+  -p 3000:3000 \
   -p 8081:8081 \
   -p 19000:19000 \
   -p 19001:19001 \
@@ -52,7 +53,7 @@ echo ""
 echo "🎉 CONTAINER INICIADO COM SUCESSO!"
 echo "=================================="
 echo ""
-echo "🖥️  Acesse: http://localhost:8081"
+echo "🖥️  Acesse: http://localhost:3000"
 echo "📱 QR Code será detectado automaticamente"
 echo "🔄 URL do tunnel atualiza em tempo real"
 echo ""

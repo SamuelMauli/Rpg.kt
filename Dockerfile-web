@@ -35,7 +35,8 @@ COPY start.sh /app/
 # Tornar script executável
 RUN chmod +x /app/start.sh
 
-# Expor portas
+# Expor portas (3000 para web server, outras para Expo)
+EXPOSE 3000
 EXPOSE 8081
 EXPOSE 19000
 EXPOSE 19001
