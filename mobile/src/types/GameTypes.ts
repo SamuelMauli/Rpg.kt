@@ -183,7 +183,8 @@ export enum EstadoJogo {
   AVENTURA = 'aventura',
   COMBATE = 'combate',
   INVENTARIO = 'inventario',
-  STATUS = 'status'
+  STATUS = 'status',
+  DUNGEON = 'dungeon'
 }
 
 export interface EventoAventura {
