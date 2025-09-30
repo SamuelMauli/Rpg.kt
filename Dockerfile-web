@@ -13,9 +13,8 @@ RUN apk add --no-cache \
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Instalar Expo CLI e dependências
+# Instalar Expo CLI e ngrok globalmente
 RUN npm install -g @expo/cli@latest @expo/ngrok@latest
-RUN npm install express qrcode
 
 # Baixar o projeto
 RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
@@ -23,11 +22,14 @@ RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
     mv Rpg.kt-main/mobile/* . && \
     rm -rf Rpg.kt-main main.zip
 
+# Instalar dependências do projeto primeiro
+RUN npm install
+
+# Instalar dependências do servidor web
+RUN npm install express qrcode
+
 # Copiar servidor web dinâmico
 COPY web-server.js /app/
-
-# Instalar dependências do projeto
-RUN npm install
 
 # Expor portas
 EXPOSE 8081
@@ -35,17 +37,14 @@ EXPOSE 19000
 EXPOSE 19001
 EXPOSE 19002
 
-# Script de inicialização com detecção dinâmica
+# Script de inicialização simplificado
 RUN echo '#!/bin/bash\n\
-echo "🚀 Iniciando Old Dragon RPG com detecção dinâmica..."\n\
+echo "🚀 Iniciando Old Dragon RPG..."\n\
 echo "📡 Iniciando Expo com tunnel..."\n\
-npx expo start --tunnel --port 19000 > /tmp/expo.log 2>&1 &\n\
-EXPO_PID=$!\n\
-echo "⏳ Aguardando tunnel conectar..."\n\
-sleep 15\n\
-echo "🖥️ Iniciando servidor web dinâmico..."\n\
-echo "📱 QR Code será detectado automaticamente"\n\
-echo "🔗 Acesse: http://localhost:8081"\n\
+npx expo start --tunnel > /tmp/expo.log 2>&1 &\n\
+echo "⏳ Aguardando tunnel conectar (30s)..."\n\
+sleep 30\n\
+echo "🖥️ Iniciando servidor web..."\n\
 node web-server.js\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
