@@ -58,7 +58,7 @@ export default function StatusScreen({ onNavigate }: StatusScreenProps) {
           <View style={styles.creditsSection}>
             <Text style={styles.sectionTitle}>Créditos:</Text>
             <Text style={styles.creditText}>Sistema de Regras: Old Dragon 2</Text>
-            <Text style={styles.creditText}>Desenvolvimento: Manus AI</Text>
+            <Text style={styles.creditText}>Desenvolvimento: Samuel Mauli</Text>
             <Text style={styles.creditText}>Arte: Geração de sprites 8-bit</Text>
           </View>
         </View>

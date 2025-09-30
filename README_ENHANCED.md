@@ -235,6 +235,6 @@ Este projeto está sob a licença MIT. Veja o arquivo LICENSE para detalhes.
 
 ---
 
-**Desenvolvido com ❤️ por Manus AI**
+**Desenvolvido por Samuel Mauli**
 
 *Um jogo de RPG completo que combina a nostalgia dos jogos clássicos com tecnologia moderna!*
