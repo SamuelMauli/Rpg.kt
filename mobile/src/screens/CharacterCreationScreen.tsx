@@ -9,7 +9,16 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { EstadoJogo, Personagem, Atributos, ModificadoresAtributos } from '../types/GameTypes';
+import { 
+  EstadoJogo, 
+  Personagem, 
+  Atributos, 
+  ModificadoresAtributos,
+  MetodoDistribuicao,
+  Alinhamento,
+  AtributosDistribuicao,
+  EstadoCriacaoPersonagem
+} from '../types/GameTypes';
 import { useGame } from '../contexts/GameContext';
 import { RaceFactory } from '../game/races/Races';
 import { ClassFactory } from '../game/classes/Classes';
@@ -22,35 +31,93 @@ interface CharacterCreationScreenProps {
 export default function CharacterCreationScreen({ onNavigate }: CharacterCreationScreenProps) {
   const { setPersonagem } = useGame();
   
-  const [step, setStep] = useState(1);
-  const [characterName, setCharacterName] = useState('');
-  const [selectedRace, setSelectedRace] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [attributes, setAttributes] = useState<Atributos>({
-    forca: 10,
-    destreza: 10,
-    constituicao: 10,
-    inteligencia: 10,
-    sabedoria: 10,
-    carisma: 10,
+  const [estado, setEstado] = useState<EstadoCriacaoPersonagem>({
+    etapa: 1,
+    nome: '',
+    raca: '',
+    classe: '',
+    metodoDistribuicao: MetodoDistribuicao.HEROICA,
+    atributosDistribuicao: {
+      valores: [],
+      metodo: MetodoDistribuicao.HEROICA,
+      atributosAssignados: {}
+    },
+    atributosFinal: {
+      forca: 10,
+      destreza: 10,
+      constituicao: 10,
+      inteligencia: 10,
+      sabedoria: 10,
+      carisma: 10,
+    },
+    alinhamento: Alinhamento.NEUTRO
   });
 
   const races = RaceFactory.getAvailableRaces();
   const classes = ClassFactory.getAvailableClasses();
 
-  const rollAttributes = () => {
-    const newAttributes: Atributos = {
-      forca: DiceUtils.rollAttribute(),
-      destreza: DiceUtils.rollAttribute(),
-      constituicao: DiceUtils.rollAttribute(),
-      inteligencia: DiceUtils.rollAttribute(),
-      sabedoria: DiceUtils.rollAttribute(),
-      carisma: DiceUtils.rollAttribute(),
-    };
-    setAttributes(newAttributes);
+  const avancarEtapa = () => {
+    if (estado.etapa < 6) {
+      setEstado(prev => ({ ...prev, etapa: prev.etapa + 1 }));
+    }
   };
 
-  const calculateModifiers = (attrs: Atributos): ModificadoresAtributos => {
+  const voltarEtapa = () => {
+    if (estado.etapa > 1) {
+      setEstado(prev => ({ ...prev, etapa: prev.etapa - 1 }));
+    }
+  };
+
+  const gerarAtributos = () => {
+    const valores = DiceUtils.generateAttributeSet(estado.metodoDistribuicao);
+    
+    let atributosAssignados: Partial<Atributos> = {};
+    
+    // Para métodos clássico e heróico, atribuir em ordem
+    if (estado.metodoDistribuicao !== MetodoDistribuicao.AVENTUREIRO) {
+      atributosAssignados = {
+        forca: valores[0],
+        destreza: valores[1],
+        constituicao: valores[2],
+        inteligencia: valores[3],
+        sabedoria: valores[4],
+        carisma: valores[5]
+      };
+    }
+    
+    setEstado(prev => ({
+      ...prev,
+      atributosDistribuicao: {
+        valores,
+        metodo: estado.metodoDistribuicao,
+        atributosAssignados
+      }
+    }));
+  };
+
+  const atribuirValor = (atributo: keyof Atributos, valor: number) => {
+    if (estado.metodoDistribuicao !== MetodoDistribuicao.AVENTUREIRO) return;
+    
+    // Verificar se o valor já foi usado
+    const valoresUsados = Object.values(estado.atributosDistribuicao.atributosAssignados);
+    if (valoresUsados.includes(valor)) {
+      Alert.alert('Erro', 'Este valor já foi atribuído a outro atributo!');
+      return;
+    }
+    
+    setEstado(prev => ({
+      ...prev,
+      atributosDistribuicao: {
+        ...prev.atributosDistribuicao,
+        atributosAssignados: {
+          ...prev.atributosDistribuicao.atributosAssignados,
+          [atributo]: valor
+        }
+      }
+    }));
+  };
+
+  const calcularModificadores = (attrs: Atributos): ModificadoresAtributos => {
     return {
       forca: DiceUtils.getAttributeModifier(attrs.forca),
       destreza: DiceUtils.getAttributeModifier(attrs.destreza),
@@ -61,32 +128,56 @@ export default function CharacterCreationScreen({ onNavigate }: CharacterCreatio
     };
   };
 
-  const createCharacter = () => {
-    if (!characterName.trim()) {
+  const finalizarPersonagem = () => {
+    if (!estado.nome.trim()) {
       Alert.alert('Erro', 'Digite um nome para o personagem!');
       return;
     }
-    if (!selectedRace || !selectedClass) {
+    if (!estado.raca || !estado.classe) {
       Alert.alert('Erro', 'Selecione uma raça e uma classe!');
       return;
     }
 
+    // Verificar se todos os atributos foram atribuídos no método aventureiro
+    if (estado.metodoDistribuicao === MetodoDistribuicao.AVENTUREIRO) {
+      const atributosCompletos = Object.keys(estado.atributosDistribuicao.atributosAssignados).length === 6;
+      if (!atributosCompletos) {
+        Alert.alert('Erro', 'Distribua todos os valores de atributos!');
+        return;
+      }
+    }
+
     try {
-      const race = RaceFactory.createRace(selectedRace);
-      const characterClass = ClassFactory.createClass(selectedClass);
+      const race = RaceFactory.createRace(estado.raca);
+      const characterClass = ClassFactory.createClass(estado.classe);
+      
+      // Obter atributos finais
+      let atributosFinal: Atributos;
+      if (estado.metodoDistribuicao === MetodoDistribuicao.AVENTUREIRO) {
+        atributosFinal = estado.atributosDistribuicao.atributosAssignados as Atributos;
+      } else {
+        atributosFinal = {
+          forca: estado.atributosDistribuicao.valores[0],
+          destreza: estado.atributosDistribuicao.valores[1],
+          constituicao: estado.atributosDistribuicao.valores[2],
+          inteligencia: estado.atributosDistribuicao.valores[3],
+          sabedoria: estado.atributosDistribuicao.valores[4],
+          carisma: estado.atributosDistribuicao.valores[5]
+        };
+      }
       
       // Aplicar modificadores raciais
       const raceModifiers = race.getModificadoresAtributos();
       const finalAttributes: Atributos = {
-        forca: attributes.forca + (raceModifiers.forca || 0),
-        destreza: attributes.destreza + (raceModifiers.destreza || 0),
-        constituicao: attributes.constituicao + (raceModifiers.constituicao || 0),
-        inteligencia: attributes.inteligencia + (raceModifiers.inteligencia || 0),
-        sabedoria: attributes.sabedoria + (raceModifiers.sabedoria || 0),
-        carisma: attributes.carisma + (raceModifiers.carisma || 0),
+        forca: atributosFinal.forca + (raceModifiers.forca || 0),
+        destreza: atributosFinal.destreza + (raceModifiers.destreza || 0),
+        constituicao: atributosFinal.constituicao + (raceModifiers.constituicao || 0),
+        inteligencia: atributosFinal.inteligencia + (raceModifiers.inteligencia || 0),
+        sabedoria: atributosFinal.sabedoria + (raceModifiers.sabedoria || 0),
+        carisma: atributosFinal.carisma + (raceModifiers.carisma || 0),
       };
 
-      const modifiers = calculateModifiers(finalAttributes);
+      const modifiers = calcularModificadores(finalAttributes);
       
       // Calcular pontos de vida iniciais
       const hitPoints = DiceUtils.rollHitPoints(
@@ -98,26 +189,21 @@ export default function CharacterCreationScreen({ onNavigate }: CharacterCreatio
       const baseAC = 10 + modifiers.destreza;
 
       const newCharacter: Personagem = {
-        nome: characterName.trim(),
-        raca: race,
-        classe: characterClass,
+        nome: estado.nome,
+        raca: estado.raca,
+        classe: estado.classe,
         nivel: 1,
         experiencia: 0,
         atributos: finalAttributes,
         modificadores: modifiers,
-        pontosVida: hitPoints,
+        pontosDeVida: hitPoints,
         pontosVidaMaximos: hitPoints,
-        classeArmadura: baseAC,
-        baseAtaque: 1,
+        classeDeArmadura: baseAC,
+        baseDeAtaque: characterClass.getBaseDeAtaque(1),
         movimento: race.getMovimento(),
-        inventario: {
-          itens: [],
-          capacidade: 20,
-          pesoAtual: 0,
-          pesoMaximo: 50 + (modifiers.forca * 5),
-        },
+        inventario: [],
         habilidades: [...race.getHabilidades(), ...characterClass.getHabilidades()],
-        dinheiro: 100,
+        dinheiro: DiceUtils.rollDice(3, 6) * 10, // 3d6 x 10 moedas de ouro iniciais
       };
 
       setPersonagem(newCharacter);
@@ -127,133 +213,273 @@ export default function CharacterCreationScreen({ onNavigate }: CharacterCreatio
     }
   };
 
-  const renderStep1 = () => (
+  const renderEtapa1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Nome do Personagem</Text>
+      <Text style={styles.stepTitle}>1. Nome do Personagem</Text>
       <TextInput
-        style={styles.nameInput}
-        value={characterName}
-        onChangeText={setCharacterName}
-        placeholder="Digite o nome do seu herói..."
-        placeholderTextColor="#888"
-        maxLength={20}
+        style={styles.input}
+        placeholder="Digite o nome do seu herói"
+        placeholderTextColor="#999"
+        value={estado.nome}
+        onChangeText={(text) => setEstado(prev => ({ ...prev, nome: text }))}
       />
-      <TouchableOpacity
-        style={[styles.button, !characterName.trim() && styles.buttonDisabled]}
-        onPress={() => characterName.trim() && setStep(2)}
-        disabled={!characterName.trim()}
+      <TouchableOpacity 
+        style={[styles.button, !estado.nome.trim() && styles.buttonDisabled]}
+        onPress={avancarEtapa}
+        disabled={!estado.nome.trim()}
       >
-        <Text style={styles.buttonText}>PRÓXIMO</Text>
+        <Text style={styles.buttonText}>Próximo</Text>
       </TouchableOpacity>
     </View>
   );
 
-  const renderStep2 = () => (
+  const renderEtapa2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Escolha sua Raça</Text>
-      <ScrollView style={styles.optionsList}>
-        {races.map((race) => (
-          <TouchableOpacity
-            key={race}
-            style={[
-              styles.optionButton,
-              selectedRace === race && styles.optionButtonSelected
-            ]}
-            onPress={() => setSelectedRace(race)}
-          >
-            <Text style={[
-              styles.optionText,
-              selectedRace === race && styles.optionTextSelected
-            ]}>
-              {race}
-            </Text>
-            <Text style={styles.optionDescription}>
-              {RaceFactory.getRaceDescription(race)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <View style={styles.navigationButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
-          <Text style={styles.buttonText}>VOLTAR</Text>
-        </TouchableOpacity>
+      <Text style={styles.stepTitle}>2. Método de Distribuição de Atributos</Text>
+      <Text style={styles.description}>
+        Escolha como seus atributos serão determinados:
+      </Text>
+      
+      {Object.values(MetodoDistribuicao).map((metodo) => (
         <TouchableOpacity
-          style={[styles.button, !selectedRace && styles.buttonDisabled]}
-          onPress={() => selectedRace && setStep(3)}
-          disabled={!selectedRace}
+          key={metodo}
+          style={[
+            styles.optionButton,
+            estado.metodoDistribuicao === metodo && styles.optionButtonSelected
+          ]}
+          onPress={() => setEstado(prev => ({ ...prev, metodoDistribuicao: metodo }))}
         >
-          <Text style={styles.buttonText}>PRÓXIMO</Text>
+          <Text style={[
+            styles.optionText,
+            estado.metodoDistribuicao === metodo && styles.optionTextSelected
+          ]}>
+            {metodo}
+          </Text>
+          <Text style={styles.optionDescription}>
+            {metodo === MetodoDistribuicao.CLASSICA && '3d6 em ordem fixa (Força, Destreza, etc.)'}
+            {metodo === MetodoDistribuicao.HEROICA && '4d6, descartar menor, em ordem fixa'}
+            {metodo === MetodoDistribuicao.AVENTUREIRO && '4d6, descartar menor, distribuir livremente'}
+          </Text>
+        </TouchableOpacity>
+      ))}
+      
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={styles.buttonSecondary} onPress={voltarEtapa}>
+          <Text style={styles.buttonText}>Voltar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={avancarEtapa}>
+          <Text style={styles.buttonText}>Próximo</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  const renderStep3 = () => (
+  const renderEtapa3 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Escolha sua Classe</Text>
-      <ScrollView style={styles.optionsList}>
-        {classes.map((characterClass) => (
-          <TouchableOpacity
-            key={characterClass}
-            style={[
-              styles.optionButton,
-              selectedClass === characterClass && styles.optionButtonSelected
-            ]}
-            onPress={() => setSelectedClass(characterClass)}
-          >
-            <Text style={[
-              styles.optionText,
-              selectedClass === characterClass && styles.optionTextSelected
-            ]}>
-              {characterClass}
-            </Text>
-            <Text style={styles.optionDescription}>
-              {ClassFactory.getClassDescription(characterClass)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <View style={styles.navigationButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
-          <Text style={styles.buttonText}>VOLTAR</Text>
+      <Text style={styles.stepTitle}>3. Gerar Atributos</Text>
+      <Text style={styles.description}>
+        Método selecionado: {estado.metodoDistribuicao}
+      </Text>
+      
+      {estado.atributosDistribuicao.valores.length === 0 ? (
+        <TouchableOpacity style={styles.button} onPress={gerarAtributos}>
+          <Text style={styles.buttonText}>🎲 Rolar Atributos</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, !selectedClass && styles.buttonDisabled]}
-          onPress={() => selectedClass && setStep(4)}
-          disabled={!selectedClass}
-        >
-          <Text style={styles.buttonText}>PRÓXIMO</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderStep4 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Atributos</Text>
-      <View style={styles.attributesContainer}>
-        {Object.entries(attributes).map(([attr, value]) => (
-          <View key={attr} style={styles.attributeRow}>
-            <Text style={styles.attributeName}>
-              {attr.charAt(0).toUpperCase() + attr.slice(1)}:
-            </Text>
-            <Text style={styles.attributeValue}>{value}</Text>
-            <Text style={styles.attributeModifier}>
-              ({DiceUtils.getAttributeModifier(value) >= 0 ? '+' : ''}
-              {DiceUtils.getAttributeModifier(value)})
-            </Text>
+      ) : (
+        <View>
+          <Text style={styles.subtitle}>Valores gerados:</Text>
+          <View style={styles.attributeGrid}>
+            {estado.atributosDistribuicao.valores.map((valor, index) => (
+              <View key={index} style={styles.attributeValue}>
+                <Text style={styles.attributeNumber}>{valor}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
-      <TouchableOpacity style={styles.rollButton} onPress={rollAttributes}>
-        <Text style={styles.buttonText}>ROLAR DADOS</Text>
+          
+          {estado.metodoDistribuicao !== MetodoDistribuicao.AVENTUREIRO && (
+            <View style={styles.attributeAssignment}>
+              <Text style={styles.subtitle}>Atribuição automática:</Text>
+              <Text style={styles.attributeText}>Força: {estado.atributosDistribuicao.valores[0]}</Text>
+              <Text style={styles.attributeText}>Destreza: {estado.atributosDistribuicao.valores[1]}</Text>
+              <Text style={styles.attributeText}>Constituição: {estado.atributosDistribuicao.valores[2]}</Text>
+              <Text style={styles.attributeText}>Inteligência: {estado.atributosDistribuicao.valores[3]}</Text>
+              <Text style={styles.attributeText}>Sabedoria: {estado.atributosDistribuicao.valores[4]}</Text>
+              <Text style={styles.attributeText}>Carisma: {estado.atributosDistribuicao.valores[5]}</Text>
+            </View>
+          )}
+          
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.buttonSecondary} onPress={() => 
+              setEstado(prev => ({ 
+                ...prev, 
+                atributosDistribuicao: { ...prev.atributosDistribuicao, valores: [] }
+              }))
+            }>
+              <Text style={styles.buttonText}>Rolar Novamente</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={avancarEtapa}>
+              <Text style={styles.buttonText}>Próximo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      
+      <TouchableOpacity style={styles.buttonSecondary} onPress={voltarEtapa}>
+        <Text style={styles.buttonText}>Voltar</Text>
       </TouchableOpacity>
-      <View style={styles.navigationButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(3)}>
-          <Text style={styles.buttonText}>VOLTAR</Text>
+    </View>
+  );
+
+  const renderEtapa4 = () => {
+    if (estado.metodoDistribuicao !== MetodoDistribuicao.AVENTUREIRO) {
+      // Pular esta etapa para métodos que não permitem distribuição livre
+      avancarEtapa();
+      return null;
+    }
+
+    const atributosDisponiveis = estado.atributosDistribuicao.valores.filter(valor => 
+      !Object.values(estado.atributosDistribuicao.atributosAssignados).includes(valor)
+    );
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>4. Distribuir Atributos</Text>
+        <Text style={styles.description}>
+          Atribua os valores rolados aos atributos de sua escolha:
+        </Text>
+        
+        <View style={styles.attributeDistribution}>
+          {(['forca', 'destreza', 'constituicao', 'inteligencia', 'sabedoria', 'carisma'] as (keyof Atributos)[]).map(atributo => (
+            <View key={atributo} style={styles.attributeRow}>
+              <Text style={styles.attributeLabel}>
+                {atributo.charAt(0).toUpperCase() + atributo.slice(1)}:
+              </Text>
+              <Text style={styles.attributeAssigned}>
+                {estado.atributosDistribuicao.atributosAssignados[atributo] || '---'}
+              </Text>
+              <ScrollView horizontal style={styles.valueSelector}>
+                {atributosDisponiveis.map(valor => (
+                  <TouchableOpacity
+                    key={valor}
+                    style={styles.valueButton}
+                    onPress={() => atribuirValor(atributo, valor)}
+                  >
+                    <Text style={styles.valueButtonText}>{valor}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
+        </View>
+        
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.buttonSecondary} onPress={voltarEtapa}>
+            <Text style={styles.buttonText}>Voltar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[
+              styles.button, 
+              Object.keys(estado.atributosDistribuicao.atributosAssignados).length < 6 && styles.buttonDisabled
+            ]}
+            onPress={avancarEtapa}
+            disabled={Object.keys(estado.atributosDistribuicao.atributosAssignados).length < 6}
+          >
+            <Text style={styles.buttonText}>Próximo</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderEtapa5 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>5. Escolher Raça</Text>
+      <ScrollView style={styles.raceList}>
+        {races.map((raceName) => {
+          const race = RaceFactory.createRace(raceName);
+          return (
+            <TouchableOpacity
+              key={raceName}
+              style={[
+                styles.raceButton,
+                estado.raca === raceName && styles.raceButtonSelected
+              ]}
+              onPress={() => setEstado(prev => ({ ...prev, raca: raceName }))}
+            >
+              <Text style={[
+                styles.raceTitle,
+                estado.raca === raceName && styles.raceTextSelected
+              ]}>
+                {race.getNome()}
+              </Text>
+              <Text style={styles.raceDescription}>
+                {race.getDescricao()}
+              </Text>
+              <Text style={styles.raceModifiers}>
+                Movimento: {race.getMovimento()}m
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={styles.buttonSecondary} onPress={voltarEtapa}>
+          <Text style={styles.buttonText}>Voltar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={createCharacter}>
-          <Text style={styles.buttonText}>CRIAR PERSONAGEM</Text>
+        <TouchableOpacity 
+          style={[styles.button, !estado.raca && styles.buttonDisabled]}
+          onPress={avancarEtapa}
+          disabled={!estado.raca}
+        >
+          <Text style={styles.buttonText}>Próximo</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderEtapa6 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>6. Escolher Classe</Text>
+      <ScrollView style={styles.classList}>
+        {classes.map((className) => {
+          const characterClass = ClassFactory.createClass(className);
+          return (
+            <TouchableOpacity
+              key={className}
+              style={[
+                styles.classButton,
+                estado.classe === className && styles.classButtonSelected
+              ]}
+              onPress={() => setEstado(prev => ({ ...prev, classe: className }))}
+            >
+              <Text style={[
+                styles.classTitle,
+                estado.classe === className && styles.classTextSelected
+              ]}>
+                {characterClass.getNome()}
+              </Text>
+              <Text style={styles.classDescription}>
+                {characterClass.getDescricao()}
+              </Text>
+              <Text style={styles.classInfo}>
+                Dado de Vida: d{characterClass.getDadoDeVida()}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={styles.buttonSecondary} onPress={voltarEtapa}>
+          <Text style={styles.buttonText}>Voltar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.button, !estado.classe && styles.buttonDisabled]}
+          onPress={finalizarPersonagem}
+          disabled={!estado.classe}
+        >
+          <Text style={styles.buttonText}>Criar Personagem</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -261,15 +487,34 @@ export default function CharacterCreationScreen({ onNavigate }: CharacterCreatio
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Criação de Personagem</Text>
-        <Text style={styles.stepIndicator}>Passo {step} de 4</Text>
+      <Image 
+        source={require('../../assets/sprites/game_logo.png')} 
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      
+      <Text style={styles.title}>Criação de Personagem</Text>
+      
+      <View style={styles.progressBar}>
+        {[1, 2, 3, 4, 5, 6].map(step => (
+          <View 
+            key={step}
+            style={[
+              styles.progressStep,
+              step <= estado.etapa && styles.progressStepActive
+            ]}
+          />
+        ))}
       </View>
       
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
-      {step === 4 && renderStep4()}
+      <ScrollView style={styles.content}>
+        {estado.etapa === 1 && renderEtapa1()}
+        {estado.etapa === 2 && renderEtapa2()}
+        {estado.etapa === 3 && renderEtapa3()}
+        {estado.etapa === 4 && renderEtapa4()}
+        {estado.etapa === 5 && renderEtapa5()}
+        {estado.etapa === 6 && renderEtapa6()}
+      </ScrollView>
     </View>
   );
 }
@@ -280,145 +525,257 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     padding: 20,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 30,
-    paddingTop: 20,
+  logo: {
+    width: 120,
+    height: 60,
+    alignSelf: 'center',
+    marginBottom: 10,
   },
   title: {
-    color: '#FFD700',
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#fff',
     textAlign: 'center',
+    marginBottom: 20,
   },
-  stepIndicator: {
-    color: '#888',
-    fontSize: 16,
-    marginTop: 5,
+  progressBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  progressStep: {
+    width: 30,
+    height: 4,
+    backgroundColor: '#333',
+    marginHorizontal: 2,
+    borderRadius: 2,
+  },
+  progressStepActive: {
+    backgroundColor: '#4ecdc4',
+  },
+  content: {
+    flex: 1,
   },
   stepContainer: {
     flex: 1,
   },
   stepTitle: {
-    color: '#FFD700',
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#4ecdc4',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  description: {
+    fontSize: 16,
+    color: '#ccc',
     textAlign: 'center',
     marginBottom: 20,
   },
-  nameInput: {
+  input: {
     backgroundColor: '#333',
-    color: '#FFF',
-    fontSize: 18,
+    color: '#fff',
     padding: 15,
     borderRadius: 8,
-    borderWidth: 2,
+    fontSize: 16,
+    marginBottom: 20,
+    borderWidth: 1,
     borderColor: '#555',
-    marginBottom: 20,
-    textAlign: 'center',
   },
-  optionsList: {
+  button: {
+    backgroundColor: '#4ecdc4',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  buttonSecondary: {
+    backgroundColor: '#666',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 5,
     flex: 1,
-    marginBottom: 20,
+    marginRight: 10,
+  },
+  buttonDisabled: {
+    backgroundColor: '#333',
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    marginTop: 20,
   },
   optionButton: {
     backgroundColor: '#333',
     padding: 15,
     borderRadius: 8,
+    marginBottom: 10,
     borderWidth: 2,
     borderColor: '#555',
-    marginBottom: 10,
   },
   optionButtonSelected: {
-    borderColor: '#FFD700',
-    backgroundColor: '#444',
+    borderColor: '#4ecdc4',
+    backgroundColor: '#2a4a47',
   },
   optionText: {
-    color: '#FFF',
-    fontSize: 18,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 5,
   },
   optionTextSelected: {
-    color: '#FFD700',
+    color: '#4ecdc4',
   },
   optionDescription: {
-    color: '#CCC',
+    color: '#ccc',
     fontSize: 14,
   },
-  attributesContainer: {
+  attributeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  attributeValue: {
+    backgroundColor: '#4ecdc4',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 5,
+  },
+  attributeNumber: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  attributeAssignment: {
     backgroundColor: '#333',
-    padding: 20,
+    padding: 15,
     borderRadius: 8,
+    marginBottom: 20,
+  },
+  subtitle: {
+    color: '#4ecdc4',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  attributeText: {
+    color: '#fff',
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  attributeDistribution: {
     marginBottom: 20,
   },
   attributeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 15,
+    backgroundColor: '#333',
+    padding: 10,
+    borderRadius: 8,
   },
-  attributeName: {
-    color: '#FFF',
+  attributeLabel: {
+    color: '#fff',
+    fontSize: 14,
+    width: 100,
+  },
+  attributeAssigned: {
+    color: '#4ecdc4',
     fontSize: 16,
+    fontWeight: 'bold',
+    width: 50,
+    textAlign: 'center',
+  },
+  valueSelector: {
     flex: 1,
   },
-  attributeValue: {
-    color: '#FFD700',
-    fontSize: 18,
+  valueButton: {
+    backgroundColor: '#4ecdc4',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 15,
+    marginHorizontal: 5,
+  },
+  valueButtonText: {
+    color: '#fff',
     fontWeight: 'bold',
-    width: 40,
-    textAlign: 'center',
   },
-  attributeModifier: {
-    color: '#CCC',
-    fontSize: 14,
-    width: 40,
-    textAlign: 'center',
-  },
-  rollButton: {
-    backgroundColor: '#8B4513',
-    borderWidth: 2,
-    borderColor: '#D2691E',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    alignItems: 'center',
+  raceList: {
+    maxHeight: 400,
     marginBottom: 20,
   },
-  navigationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  button: {
-    backgroundColor: '#8B4513',
-    borderWidth: 2,
-    borderColor: '#D2691E',
+  raceButton: {
+    backgroundColor: '#333',
+    padding: 15,
     borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    flex: 1,
-    marginLeft: 10,
-    alignItems: 'center',
-  },
-  backButton: {
-    backgroundColor: '#666',
+    marginBottom: 10,
     borderWidth: 2,
-    borderColor: '#888',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    flex: 1,
-    marginRight: 10,
-    alignItems: 'center',
+    borderColor: '#555',
   },
-  buttonDisabled: {
-    backgroundColor: '#444',
-    borderColor: '#666',
+  raceButtonSelected: {
+    borderColor: '#4ecdc4',
+    backgroundColor: '#2a4a47',
   },
-  buttonText: {
-    color: '#FFD700',
+  raceTitle: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  raceTextSelected: {
+    color: '#4ecdc4',
+  },
+  raceDescription: {
+    color: '#ccc',
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  raceModifiers: {
+    color: '#999',
+    fontSize: 12,
+  },
+  classList: {
+    maxHeight: 400,
+    marginBottom: 20,
+  },
+  classButton: {
+    backgroundColor: '#333',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: '#555',
+  },
+  classButtonSelected: {
+    borderColor: '#4ecdc4',
+    backgroundColor: '#2a4a47',
+  },
+  classTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  classTextSelected: {
+    color: '#4ecdc4',
+  },
+  classDescription: {
+    color: '#ccc',
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  classInfo: {
+    color: '#999',
+    fontSize: 12,
   },
 });

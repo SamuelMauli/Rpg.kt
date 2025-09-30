@@ -1,3 +1,5 @@
+import { MetodoDistribuicao } from '../types/GameTypes';
+
 // Utilitários para rolagem de dados
 export class DiceUtils {
   /**
@@ -65,6 +67,52 @@ export class DiceUtils {
     
     // Soma os 3 maiores
     return rolls[0] + rolls[1] + rolls[2];
+  }
+
+  /**
+   * Rola atributo com método clássico (3d6)
+   */
+  static rollAttributeClassic(): number {
+    return this.rollDice(3, 6);
+  }
+
+  /**
+   * Gera conjunto completo de atributos baseado no método
+   */
+  static generateAttributeSet(metodo: MetodoDistribuicao): number[] {
+    const valores: number[] = [];
+    
+    switch (metodo) {
+      case MetodoDistribuicao.CLASSICA:
+        // 3d6 em ordem fixa
+        for (let i = 0; i < 6; i++) {
+          valores.push(this.rollAttributeClassic());
+        }
+        break;
+        
+      case MetodoDistribuicao.HEROICA:
+        // 4d6 descartar menor, em ordem fixa
+        for (let i = 0; i < 6; i++) {
+          valores.push(this.rollAttributeHeroic());
+        }
+        break;
+        
+      case MetodoDistribuicao.AVENTUREIRO:
+        // 4d6 descartar menor, para distribuir livremente
+        for (let i = 0; i < 6; i++) {
+          valores.push(this.rollAttributeHeroic());
+        }
+        break;
+        
+      default:
+        // Fallback para método heróico
+        for (let i = 0; i < 6; i++) {
+          valores.push(this.rollAttributeHeroic());
+        }
+        break;
+    }
+    
+    return valores;
   }
 
   /**

@@ -25,8 +25,14 @@ export class CombatManager {
       turno: 1,
       iniciativaPersonagem,
       iniciativaMonstros,
-      combateAtivo: true
+      combateAtivo: true,
+      logCombate: [`=== Combate Iniciado ===`, `Iniciativa do personagem: ${iniciativaPersonagem}`]
     };
+
+    // Adicionar iniciativas dos monstros ao log
+    monstros.forEach((monstro, index) => {
+      this.estadoCombate!.logCombate.push(`Iniciativa ${monstro.nome}: ${iniciativaMonstros[index]}`);
+    });
 
     return this.estadoCombate;
   }
@@ -50,197 +56,206 @@ export class CombatManager {
         break;
     }
 
-    // Verificar se o combate ainda está ativo
-    if (this.estadoCombate.combateAtivo) {
-      resultado += '\n\n' + this.processarTurnoMonstros();
-    }
+    // Adicionar resultado ao log
+    this.estadoCombate.logCombate.push(resultado);
 
-    // Verificar condições de fim de combate
-    this.verificarFimCombate();
+    // Se o combate ainda está ativo, processar turno dos monstros
+    if (this.estadoCombate.combateAtivo) {
+      const resultadoMonstros = this.processarTurnoMonstros();
+      this.estadoCombate.logCombate.push(...resultadoMonstros);
+      this.estadoCombate.turno++;
+    }
 
     return resultado;
   }
 
   private atacarMonstro(indiceAlvo: number): string {
-    if (!this.estadoCombate) return '';
+    if (!this.estadoCombate) return 'Erro: sem estado de combate';
 
-    const { personagem, monstros } = this.estadoCombate;
-    
-    if (indiceAlvo >= monstros.length || monstros[indiceAlvo].pontosDeVida <= 0) {
-      return 'Alvo inválido!';
+    const monstroAlvo = this.estadoCombate.monstros[indiceAlvo];
+    if (!monstroAlvo || monstroAlvo.pontosDeVida <= 0) {
+      return 'Alvo inválido ou já morto!';
     }
 
-    const alvo = monstros[indiceAlvo];
+    const personagem = this.estadoCombate.personagem;
     
     // Rolar ataque
-    const rolagemAtaque = DiceUtils.rollAttack(
-      personagem.baseAtaque,
+    const roleAtaque = DiceUtils.rollAttack(
+      personagem.baseDeAtaque,
       personagem.modificadores.forca
     );
 
-    let resultado = `${personagem.nome} ataca ${alvo.nome}!\n`;
-    resultado += `Rolagem de ataque: ${rolagemAtaque} vs CA ${alvo.classeArmadura}\n`;
+    let resultado = `${personagem.nome} ataca ${monstroAlvo.nome}! `;
+    resultado += `Rolagem: ${roleAtaque} vs CA ${monstroAlvo.classeDeArmadura}`;
 
-    if (rolagemAtaque >= alvo.classeArmadura) {
-      // Acerto! Rolar dano
-      const dano = this.calcularDanoPersonagem(personagem);
-      MonsterFactory.receberDano(alvo, dano);
+    if (roleAtaque >= monstroAlvo.classeDeArmadura) {
+      // Acertou - rolar dano
+      const dano = DiceUtils.rollDamage('1d8', personagem.modificadores.forca);
+      monstroAlvo.pontosDeVida -= dano;
       
-      resultado += `Acertou! Causou ${dano} pontos de dano.\n`;
-      resultado += `${alvo.nome} agora tem ${alvo.pontosDeVida} PV.`;
-
-      if (MonsterFactory.estaMorto(alvo)) {
-        resultado += `\n${alvo.nome} foi derrotado!`;
+      resultado += ` - ACERTOU! Dano: ${dano}`;
+      
+      if (monstroAlvo.pontosDeVida <= 0) {
+        resultado += ` - ${monstroAlvo.nome} foi derrotado!`;
+        this.verificarFimCombate();
+      } else {
+        resultado += ` - ${monstroAlvo.nome} tem ${monstroAlvo.pontosDeVida} PV restantes`;
       }
     } else {
-      resultado += 'Errou o ataque!';
+      resultado += ' - ERROU!';
     }
 
     return resultado;
   }
 
   private tentarFuga(): string {
-    if (!this.estadoCombate) return '';
+    if (!this.estadoCombate) return 'Erro: sem estado de combate';
 
-    // Teste de fuga baseado em Destreza
-    const sucessoFuga = DiceUtils.rollAttributeCheck(
-      this.estadoCombate.personagem.atributos.destreza,
-      15
-    );
-
+    // Teste de fuga (50% de chance base)
+    const sucessoFuga = DiceUtils.rollDie(6) >= 4;
+    
     if (sucessoFuga) {
       this.estadoCombate.combateAtivo = false;
       return `${this.estadoCombate.personagem.nome} conseguiu fugir do combate!`;
     } else {
-      return `${this.estadoCombate.personagem.nome} tentou fugir mas não conseguiu escapar!`;
+      return `${this.estadoCombate.personagem.nome} tentou fugir mas não conseguiu!`;
     }
   }
 
   private usarItem(item?: Item): string {
     if (!this.estadoCombate || !item) return 'Item inválido!';
 
-    // Implementar uso de itens (poções, etc.)
-    if (item.tipo === 'pocao') {
-      // Exemplo: poção de cura
-      if (item.nome.toLowerCase().includes('cura')) {
-        const cura = DiceUtils.rollFromString('1d8+1');
-        this.estadoCombate.personagem.pontosVida = Math.min(
-          this.estadoCombate.personagem.pontosVidaMaximos,
-          this.estadoCombate.personagem.pontosVida + cura
-        );
-        return `${this.estadoCombate.personagem.nome} usou ${item.nome} e recuperou ${cura} PV!`;
+    const personagem = this.estadoCombate.personagem;
+    
+    if (item.tipo === TipoItem.POCAO && item.nome.includes('Cura')) {
+      const cura = DiceUtils.rollDamage('1d8') + 1;
+      personagem.pontosDeVida = Math.min(
+        personagem.pontosDeVida + cura,
+        personagem.pontosVidaMaximos
+      );
+      
+      // Remover item do inventário
+      const index = personagem.inventario.findIndex(i => i.nome === item.nome);
+      if (index >= 0) {
+        personagem.inventario.splice(index, 1);
       }
+      
+      return `${personagem.nome} usou ${item.nome} e recuperou ${cura} pontos de vida!`;
     }
 
-    return `${this.estadoCombate.personagem.nome} usou ${item.nome}.`;
+    return `${personagem.nome} usou ${item.nome}`;
   }
 
-  private processarTurnoMonstros(): string {
-    if (!this.estadoCombate) return '';
+  private processarTurnoMonstros(): string[] {
+    if (!this.estadoCombate) return ['Erro: sem estado de combate'];
 
-    let resultado = '';
-    const { personagem, monstros } = this.estadoCombate;
+    const resultados: string[] = [];
+    const personagem = this.estadoCombate.personagem;
 
-    for (let i = 0; i < monstros.length; i++) {
-      const monstro = monstros[i];
-      
-      if (MonsterFactory.estaMorto(monstro)) continue;
+    for (const monstro of this.estadoCombate.monstros) {
+      if (monstro.pontosDeVida <= 0) continue;
 
-      // Teste de moral se o monstro estiver ferido
-      if (monstro.pontosDeVida < monstro.dadosDeVida * 4) { // Menos de 50% da vida
-        if (!MonsterFactory.testarMoral(monstro)) {
-          resultado += `${monstro.nome} foge do combate!\n`;
-          monstro.pontosDeVida = 0; // Remove do combate
+      // Monstro pode tentar fugir se estiver com pouca vida
+      if (monstro.pontosDeVida <= monstro.pontosDeVidaMaximos * 0.25) {
+        if (DiceUtils.rollDie(6) >= 5) {
+          resultados.push(`${monstro.nome} fugiu do combate!`);
+          monstro.pontosDeVida = 0; // Marcar como "morto" para remover
           continue;
         }
       }
 
-      // Atacar o personagem
-      const rolagemAtaque = DiceUtils.rollAttack(monstro.baseAtaque, 0);
-      
-      resultado += `${monstro.nome} ataca ${personagem.nome}!\n`;
-      resultado += `Rolagem de ataque: ${rolagemAtaque} vs CA ${personagem.classeArmadura}\n`;
+      // Atacar personagem
+      const roleAtaque = DiceUtils.rollAttack(monstro.baseDeAtaque, 0);
+      let resultado = `${monstro.nome} ataca ${personagem.nome}! `;
+      resultado += `Rolagem: ${roleAtaque} vs CA ${personagem.classeDeArmadura}`;
 
-      if (rolagemAtaque >= personagem.classeArmadura) {
-        const dano = MonsterFactory.rolarDano(monstro);
-        personagem.pontosVida = Math.max(0, personagem.pontosVida - dano);
+      if (roleAtaque >= personagem.classeDeArmadura) {
+        const dano = DiceUtils.rollDamage(monstro.dano);
+        personagem.pontosDeVida -= dano;
         
-        resultado += `Acertou! Causou ${dano} pontos de dano.\n`;
-        resultado += `${personagem.nome} agora tem ${personagem.pontosVida} PV.\n`;
+        resultado += ` - ACERTOU! Dano: ${dano}`;
+        
+        if (personagem.pontosDeVida <= 0) {
+          resultado += ` - ${personagem.nome} foi derrotado!`;
+          this.estadoCombate.combateAtivo = false;
+        } else {
+          resultado += ` - ${personagem.nome} tem ${personagem.pontosDeVida} PV restantes`;
+        }
       } else {
-        resultado += 'Errou o ataque!\n';
+        resultado += ' - ERROU!';
       }
+
+      resultados.push(resultado);
     }
 
-    this.estadoCombate.turno++;
-    return resultado;
-  }
-
-  private calcularDanoPersonagem(personagem: Personagem): number {
-    // Dano base + modificador de Força
-    // Por simplicidade, usando 1d6 como dano base
-    const danoBase = DiceUtils.rollDie(6);
-    return Math.max(1, danoBase + personagem.modificadores.forca);
+    return resultados;
   }
 
   private verificarFimCombate(): void {
     if (!this.estadoCombate) return;
 
-    const { personagem, monstros } = this.estadoCombate;
-
-    // Personagem morreu
-    if (personagem.pontosVida <= 0) {
-      this.estadoCombate.combateAtivo = false;
-      return;
-    }
-
-    // Todos os monstros foram derrotados
-    const monstrosVivos = monstros.filter(m => !MonsterFactory.estaMorto(m));
+    const monstrosVivos = this.estadoCombate.monstros.filter(m => m.pontosDeVida > 0);
+    
     if (monstrosVivos.length === 0) {
       this.estadoCombate.combateAtivo = false;
-      return;
+      this.estadoCombate.logCombate.push('=== Vitória! Todos os monstros foram derrotados! ===');
+      
+      // Calcular experiência ganha
+      const expGanha = this.estadoCombate.monstros.reduce((total, monstro) => 
+        total + monstro.experiencia, 0
+      );
+      
+      this.estadoCombate.personagem.experiencia += expGanha;
+      this.estadoCombate.logCombate.push(`Experiência ganha: ${expGanha}`);
+      
+      // Gerar tesouro (simplificado)
+      if (Math.random() < 0.3) { // 30% de chance de tesouro
+        const tesouro: Item = {
+          nome: 'Poção de Cura',
+          tipo: TipoItem.POCAO,
+          descricao: 'Restaura 1d8+1 pontos de vida',
+          peso: 0.5,
+          valor: 50
+        };
+        
+        this.estadoCombate.personagem.inventario.push(tesouro);
+        this.estadoCombate.logCombate.push(`Tesouro encontrado: ${tesouro.nome}`);
+      }
     }
   }
 
   finalizarCombate(): ResultadoCombate | null {
     if (!this.estadoCombate) return null;
 
-    const { personagem, monstros } = this.estadoCombate;
-    const monstrosVivos = monstros.filter(m => !MonsterFactory.estaMorto(m));
-    const vitoria = personagem.pontosVida > 0 && monstrosVivos.length === 0;
+    const monstrosVivos = this.estadoCombate.monstros.filter(m => m.pontosDeVida > 0);
+    const vitoria = monstrosVivos.length === 0;
+    const personagemMorreu = this.estadoCombate.personagem.pontosDeVida <= 0;
 
-    let experienciaGanha = 0;
+    const experienciaGanha = vitoria ? 
+      this.estadoCombate.monstros.reduce((total, monstro) => total + monstro.experiencia, 0) : 0;
+
     const tesouroEncontrado: Item[] = [];
-
-    if (vitoria) {
-      // Calcular experiência ganha
-      experienciaGanha = monstros.reduce((total, monstro) => {
-        if (MonsterFactory.estaMorto(monstro)) {
-          return total + monstro.experiencia;
-        }
-        return total;
-      }, 0);
-
-      // Gerar tesouro (simplificado)
-      if (Math.random() < 0.3) { // 30% de chance de tesouro
-        tesouroEncontrado.push({
-          nome: 'Poção de Cura',
-          tipo: TipoItem.POCAO,
-          descricao: 'Restaura 1d8+1 pontos de vida',
-          peso: 0.5,
-          valor: 50
-        });
-      }
+    if (vitoria && Math.random() < 0.3) {
+      tesouroEncontrado.push({
+        nome: 'Poção de Cura',
+        tipo: TipoItem.POCAO,
+        descricao: 'Restaura 1d8+1 pontos de vida',
+        peso: 0.5,
+        valor: 50
+      });
     }
 
     const resultado: ResultadoCombate = {
       vitoria,
       experienciaGanha,
       tesouroEncontrado,
-      danoRecebido: this.estadoCombate.personagem.pontosVidaMaximos - this.estadoCombate.personagem.pontosVida
+      personagemMorreu,
+      logCombate: [...this.estadoCombate.logCombate]
     };
 
+    // Limpar estado de combate
     this.estadoCombate = null;
+
     return resultado;
   }
 
@@ -250,27 +265,5 @@ export class CombatManager {
 
   isCombateAtivo(): boolean {
     return this.estadoCombate?.combateAtivo || false;
-  }
-
-  getMonstrosVivos(): Monstro[] {
-    if (!this.estadoCombate) return [];
-    return this.estadoCombate.monstros.filter(m => !MonsterFactory.estaMorto(m));
-  }
-
-  getDescricaoSituacao(): string {
-    if (!this.estadoCombate) return 'Nenhum combate ativo.';
-
-    const { personagem, monstros, turno } = this.estadoCombate;
-    const monstrosVivos = this.getMonstrosVivos();
-
-    let descricao = `=== TURNO ${turno} ===\n\n`;
-    descricao += `${personagem.nome}: ${personagem.pontosVida}/${personagem.pontosVidaMaximos} PV\n\n`;
-    descricao += 'INIMIGOS:\n';
-    
-    monstrosVivos.forEach((monstro, index) => {
-      descricao += `${index + 1}. ${monstro.nome}: ${monstro.pontosDeVida} PV\n`;
-    });
-
-    return descricao;
   }
 }

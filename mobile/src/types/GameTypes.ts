@@ -165,6 +165,18 @@ export interface EstatisticasMonstro {
   tamanho: string;
 }
 
+export enum MetodoDistribuicao {
+  CLASSICA = 'CLASSICA',      // 3d6 em ordem
+  HEROICA = 'HEROICA',        // 4d6, descartar menor, em ordem
+  AVENTUREIRO = 'AVENTUREIRO' // 4d6, descartar menor, distribuir livremente
+}
+
+export enum Alinhamento {
+  ORDEIRO = 'ORDEIRO',
+  NEUTRO = 'NEUTRO',
+  CAOTICO = 'CAOTICO'
+}
+
 export enum EstadoJogo {
   MENU_PRINCIPAL = 'menu_principal',
   CRIACAO_PERSONAGEM = 'criacao_personagem',
@@ -205,6 +217,7 @@ export interface EstadoCombate {
   iniciativaPersonagem: number;
   iniciativaMonstros: number[];
   combateAtivo: boolean;
+  logCombate: string[];
 }
 
 export interface ResultadoCombate {
@@ -212,4 +225,22 @@ export interface ResultadoCombate {
   experienciaGanha: number;
   tesouroEncontrado: Item[];
   danoRecebido: number;
+}
+
+export interface AtributosDistribuicao {
+  valores: number[];
+  metodo: MetodoDistribuicao;
+  pontosDisponiveis?: number;
+  atributosAssignados: Partial<Atributos>;
+}
+
+export interface EstadoCriacaoPersonagem {
+  etapa: number;
+  nome: string;
+  raca: string;
+  classe: string;
+  metodoDistribuicao: MetodoDistribuicao;
+  atributosDistribuicao: AtributosDistribuicao;
+  atributosFinal: Atributos;
+  alinhamento: Alinhamento;
 }
