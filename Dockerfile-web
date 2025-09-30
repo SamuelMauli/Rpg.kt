@@ -1,4 +1,4 @@
-# Dockerfile com servidor web customizado para QR Code
+# Dockerfile com servidor web dinâmico para QR Code
 FROM node:18-alpine
 
 # Instalar dependências do sistema
@@ -7,7 +7,8 @@ RUN apk add --no-cache \
     bash \
     curl \
     wget \
-    unzip
+    unzip \
+    procps
 
 # Criar diretório de trabalho
 WORKDIR /app
@@ -22,7 +23,7 @@ RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
     mv Rpg.kt-main/mobile/* . && \
     rm -rf Rpg.kt-main main.zip
 
-# Copiar servidor web customizado
+# Copiar servidor web dinâmico
 COPY web-server.js /app/
 
 # Instalar dependências do projeto
@@ -34,12 +35,17 @@ EXPOSE 19000
 EXPOSE 19001
 EXPOSE 19002
 
-# Script de inicialização
+# Script de inicialização com detecção dinâmica
 RUN echo '#!/bin/bash\n\
-echo "🚀 Iniciando Old Dragon RPG..."\n\
-npx expo start --tunnel --port 19000 &\n\
-sleep 10\n\
-echo "🖥️ Iniciando servidor web..."\n\
+echo "🚀 Iniciando Old Dragon RPG com detecção dinâmica..."\n\
+echo "📡 Iniciando Expo com tunnel..."\n\
+npx expo start --tunnel --port 19000 > /tmp/expo.log 2>&1 &\n\
+EXPO_PID=$!\n\
+echo "⏳ Aguardando tunnel conectar..."\n\
+sleep 15\n\
+echo "🖥️ Iniciando servidor web dinâmico..."\n\
+echo "📱 QR Code será detectado automaticamente"\n\
+echo "🔗 Acesse: http://localhost:8081"\n\
 node web-server.js\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
