@@ -72,14 +72,11 @@ stop_services() {
 # Função para criar diretórios necessários
 create_directories() {
     log "Criando diretórios necessários..."
+    
+    # Criar diretórios sem tentar alterar permissões
     mkdir -p logs uploads database 2>/dev/null || true
     
-    # Tentar alterar permissões, mas não falhar se não conseguir
-    chmod 755 logs uploads database 2>/dev/null || {
-        warn "Não foi possível alterar permissões dos diretórios (normal em alguns sistemas)"
-    }
-    
-    log "Diretórios criados"
+    log "Diretórios criados com sucesso"
 }
 
 # Função para criar arquivo .env se não existir

@@ -15,6 +15,10 @@ help: ## Mostrar ajuda
 
 deploy: ## Deploy completo da aplicação
 	@echo -e "$(GREEN)🚀 Iniciando deploy completo...$(NC)"
+	./quick-deploy.sh
+
+deploy-full: ## Deploy completo com script original
+	@echo -e "$(GREEN)🚀 Deploy completo (script original)...$(NC)"
 	./deploy.sh deploy
 
 start: ## Iniciar serviços
@@ -43,7 +47,8 @@ ngrok: ## Configurar e iniciar ngrok
 
 clean: ## Limpar containers e volumes
 	@echo -e "$(YELLOW)🧹 Limpando containers e volumes...$(NC)"
-	./cleanup.sh
+	docker-compose down --volumes --remove-orphans 2>/dev/null || true
+	docker system prune -f 2>/dev/null || true
 
 force-clean: ## Limpeza forçada completa
 	@echo -e "$(YELLOW)🧹 Limpeza forçada completa...$(NC)"
