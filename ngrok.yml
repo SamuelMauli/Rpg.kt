@@ -1,0 +1,20 @@
+version: 3
+agent:
+  authtoken: 33U5DE9pqa3Dk4GwWH8VdslC5iL_2Vrr1B4qxR6oc9mkEikah
+
+tunnels:
+  rpg-app:
+    proto: http
+    addr: 8081
+    domain: nonlustrously-nonsustainable-ronny.ngrok-free.dev
+    inspect: true
+    
+  rpg-backend:
+    proto: http
+    addr: 5000
+    inspect: true
+    
+  rpg-local:
+    proto: http
+    addr: 8081
+    inspect: true
