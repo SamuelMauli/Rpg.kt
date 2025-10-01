@@ -55,15 +55,31 @@ fi
 # Função para parar serviços existentes
 stop_services() {
     log "Parando serviços existentes..."
+    
+    # Parar containers específicos se estiverem rodando
+    docker stop old-dragon-rpg rpg_backend rpg_mysql 2>/dev/null || true
+    docker rm old-dragon-rpg rpg_backend rpg_mysql 2>/dev/null || true
+    
+    # Parar via docker-compose
     docker-compose down --remove-orphans 2>/dev/null || true
-    docker system prune -f 2>/dev/null || true
+    
+    # Limpar containers órfãos
+    docker container prune -f 2>/dev/null || true
+    
+    log "Containers existentes removidos"
 }
 
 # Função para criar diretórios necessários
 create_directories() {
     log "Criando diretórios necessários..."
-    mkdir -p logs uploads database
-    chmod 755 logs uploads database
+    mkdir -p logs uploads database 2>/dev/null || true
+    
+    # Tentar alterar permissões, mas não falhar se não conseguir
+    chmod 755 logs uploads database 2>/dev/null || {
+        warn "Não foi possível alterar permissões dos diretórios (normal em alguns sistemas)"
+    }
+    
+    log "Diretórios criados"
 }
 
 # Função para criar arquivo .env se não existir

@@ -43,8 +43,12 @@ ngrok: ## Configurar e iniciar ngrok
 
 clean: ## Limpar containers e volumes
 	@echo -e "$(YELLOW)🧹 Limpando containers e volumes...$(NC)"
-	docker-compose down --volumes --remove-orphans
-	docker system prune -f
+	./cleanup.sh
+
+force-clean: ## Limpeza forçada completa
+	@echo -e "$(YELLOW)🧹 Limpeza forçada completa...$(NC)"
+	./cleanup.sh
+	docker system prune -af --volumes
 
 build: ## Construir imagens Docker
 	@echo -e "$(GREEN)🔨 Construindo imagens Docker...$(NC)"
