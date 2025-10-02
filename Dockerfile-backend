@@ -13,7 +13,7 @@ COPY package*.json ./
 
 # Instalar dependências Node.js básicas para RPG
 RUN npm init -y && \
-    npm install express mysql2 cors dotenv bcrypt jsonwebtoken helmet morgan
+    npm install express mysql2 cors dotenv bcrypt jsonwebtoken helmet morgan qrcode multer
 
 # Copiar código da aplicação
 COPY . .
@@ -25,4 +25,4 @@ RUN mkdir -p logs uploads
 EXPOSE 5000
 
 # Comando de inicialização
-CMD ["node", "web-server.js"]
+CMD ["node", "web-server-enhanced.js"]

@@ -188,7 +188,8 @@ $SUDO docker rm $(docker ps -aq) 2>/dev/null || true
 
 # Iniciar containers
 log "Iniciando containers RPG..."
-$SUDO docker-compose up -d --build
+$SUDO docker-compose build --no-cache
+$SUDO docker-compose up -d
 
 # Aguardar MySQL
 log "Aguardando MySQL inicializar..."

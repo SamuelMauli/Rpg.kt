@@ -24,6 +24,9 @@ RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
 # Instalar dependências do projeto
 RUN npm install
 
+# Instalar dependências para suporte web
+RUN npm install react-dom@19.1.0 react-native-web@^0.21.0
+
 # Expor portas do Expo
 EXPOSE 8081
 EXPOSE 19000
@@ -34,5 +37,5 @@ EXPOSE 19002
 ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
 ENV REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
 
-# Comando para iniciar o Expo com interface web
-CMD ["sh", "-c", "npx expo start --tunnel --web"]
+# Comando para iniciar o Expo
+CMD ["sh", "-c", "npx expo start --tunnel"]
