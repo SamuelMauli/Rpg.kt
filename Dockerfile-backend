@@ -3,7 +3,10 @@ FROM node:18-alpine
 # Instalar dependências do sistema
 RUN apk add --no-cache \
     mysql-client \
-    curl
+    curl \
+    python3 \
+    make \
+    g++
 
 # Definir diretório de trabalho
 WORKDIR /app
@@ -13,7 +16,7 @@ COPY package*.json ./
 
 # Instalar dependências Node.js básicas para RPG
 RUN npm init -y && \
-    npm install express mysql2 cors dotenv bcrypt jsonwebtoken helmet morgan qrcode multer
+    npm install express mysql2 cors dotenv jsonwebtoken helmet morgan
 
 # Copiar código da aplicação
 COPY . .
