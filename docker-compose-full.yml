@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rpg_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rpg_root_2024
+      MYSQL_DATABASE: rpg_database
+      MYSQL_USER: rpg_user
+      MYSQL_PASSWORD: rpg_pass_2024
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - rpg_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile-backend
+    container_name: rpg_backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=mysql://rpg_user:rpg_pass_2024@mysql:3306/rpg_database
+      - PORT=5000
+      - JWT_SECRET=rpg-system-jwt-secret-2024
+    volumes:
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock  # Para controlar outros containers
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - rpg_network
+
+  expo-rpg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: old-dragon-rpg
+    restart: always
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    environment:
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
+    volumes:
+      - expo_cache:/app/.expo
+    networks:
+      - rpg_network
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  expo_cache:
+
+networks:
+  rpg_network:
+    driver: bridge

@@ -28,4 +28,4 @@ RUN mkdir -p logs uploads
 EXPOSE 5000
 
 # Comando de inicialização
-CMD ["node", "web-server-enhanced.js"]
+CMD ["node", "web-server-hybrid.js"]
