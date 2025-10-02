@@ -15,11 +15,8 @@ WORKDIR /app
 # Instalar Expo CLI e ngrok globalmente
 RUN npm install -g @expo/cli@latest @expo/ngrok@latest
 
-# Baixar o projeto
-RUN wget https://github.com/SamuelMauli/Rpg.kt/archive/refs/heads/main.zip && \
-    unzip main.zip && \
-    mv Rpg.kt-main/mobile/* . && \
-    rm -rf Rpg.kt-main main.zip
+# Copiar projeto mobile local
+COPY mobile/ ./
 
 # Instalar dependências do projeto
 RUN npm install
