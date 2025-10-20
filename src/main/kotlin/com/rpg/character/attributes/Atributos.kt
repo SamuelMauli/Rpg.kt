@@ -1,12 +1,12 @@
 package com.rpg.character.attributes
 
 data class Atributos(
-    val forca: Int,
-    val destreza: Int,
-    val constituicao: Int,
-    val inteligencia: Int,
-    val sabedoria: Int,
-    val carisma: Int
+    var forca: Int,
+    var destreza: Int,
+    var constituicao: Int,
+    var inteligencia: Int,
+    var sabedoria: Int,
+    var carisma: Int
 ) {
     fun getModificador(atributo: Int): Int {
         return atributo.toModificador()
