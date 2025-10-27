@@ -1,0 +1,43 @@
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Sistema
+.DS_Store
+*.log
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Database (será criado em runtime)
+database/*.db
+database/*.db-journal
+
+# Logs
+logs/
+
+# Node modules (se existir)
+node_modules/
+mobile/node_modules/
+
+# Documentação desnecessária no container
+*.md
+!README.md
+
+# Outros
+tmp/
+temp/
+*.tmp
+

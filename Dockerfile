@@ -1,38 +1,29 @@
-# Dockerfile para Old Dragon RPG Mobile com QR Code
-FROM node:18-alpine
+# Dockerfile para Old Dragon 2 RPG - Sistema Completo
+FROM openjdk:17-slim
 
-# Instalar dependências do sistema
-RUN apk add --no-cache \
-    git \
-    bash \
+# Instalar dependências necessárias
+RUN apt-get update && apt-get install -y \
     curl \
     wget \
-    unzip
+    unzip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Criar diretório de trabalho
 WORKDIR /app
 
-# Instalar Expo CLI e ngrok globalmente
-RUN npm install -g @expo/cli@latest @expo/ngrok@latest
+# Copiar projeto completo
+COPY . .
 
-# Copiar projeto mobile local
-COPY mobile/ ./
+# Dar permissão de execução ao gradlew
+RUN chmod +x gradlew
 
-# Instalar dependências do projeto
-RUN npm install
+# Compilar o projeto
+RUN ./gradlew clean build -x test
 
-# Instalar dependências para suporte web
-RUN npm install react-dom@19.1.0 react-native-web@^0.21.0
+# Expor porta (caso precise de API REST no futuro)
+EXPOSE 8080
 
-# Expor portas do Expo
-EXPOSE 8081
-EXPOSE 19000
-EXPOSE 19001
-EXPOSE 19002
+# Comando para executar o jogo
+CMD ["./gradlew", "run", "--console=plain"]
 
-# Configurar variáveis de ambiente para interface web
-ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
-ENV REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
-
-# Comando para iniciar o Expo
-CMD ["sh", "-c", "npx expo start --tunnel"]
